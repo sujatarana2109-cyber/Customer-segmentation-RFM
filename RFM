@@ -1,0 +1,56 @@
+import pandas as pd
+import numpy as np
+from datetime import datetime
+
+# Simulate or load transaction data
+data = {
+    'CustomerID': [1, 1, 2, 2, 2, 3, 4, 4, 5],
+    'InvoiceDate': [
+        '2023-01-01', '2023-02-15', '2023-01-10', '2023-03-20', '2023-04-05',
+        '2023-02-01', '2023-01-15', '2023-03-10', '2023-05-01'
+    ],
+    'Amount': [100, 150, 200, 50, 300, 75, 120, 80, 250]
+}
+
+df = pd.DataFrame(data)
+df['InvoiceDate'] = pd.to_datetime(df['InvoiceDate'])
+
+#  Define the reference date (end of analysis period)
+reference_date = datetime(2023, 6, 1)
+
+#  Calculate RFM metrics
+rfm = df.groupby('CustomerID').agg(
+    Recency=('InvoiceDate', lambda x: (reference_date - x.max()).days),
+    Frequency=('InvoiceDate', 'count'),
+    Monetary=('Amount', 'sum')
+).reset_index()
+
+#  Assign RFM scores using ranking + qcut (works for small datasets)
+rfm['R_Score'] = pd.qcut(rfm['Recency'].rank(method='first'), 5, labels=[5,4,3,2,1])
+rfm['F_Score'] = pd.qcut(rfm['Frequency'].rank(method='first'), 5, labels=[1,2,3,4,5])
+rfm['M_Score'] = pd.qcut(rfm['Monetary'].rank(method='first'), 5, labels=[1,2,3,4,5])
+
+#  Combine RFM score into a single string
+rfm['RFM_Score'] = rfm['R_Score'].astype(str) + rfm['F_Score'].astype(str) + rfm['M_Score'].astype(str)
+
+#  Segment customers based on rules
+def segment_customer(row):
+    r, f, m = int(row['R_Score']), int(row['F_Score']), int(row['M_Score'])
+    
+    if r >= 4 and f >= 4 and m >= 4:
+        return 'Champions'
+    elif r >= 3 and f >= 3 and m >= 3:
+        return 'Loyal Customers'
+    elif r >= 3 and f <= 2 and m <= 2:
+        return 'New Customers'
+    elif r <= 2 and f >= 3 and m >= 3:
+        return 'At-Risk'
+    elif r <= 2 and f <= 2 and m <= 2:
+        return 'Lost'
+    else:
+        return 'Others'
+
+rfm['Segment'] = rfm.apply(segment_customer, axis=1)
+
+#  Display final RFM table
+print(rfm)
