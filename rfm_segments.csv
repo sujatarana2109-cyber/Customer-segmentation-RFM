@@ -1,0 +1,6 @@
+CustomerID,Recency,Frequency,Monetary,Segment
+1,106,2,250,Loyal
+2,57,3,550,Champion
+3,120,1,75,Lost
+4,83,2,200,Loyal
+5,31,1,250,New Customer
