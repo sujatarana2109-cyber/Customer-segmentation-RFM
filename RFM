@@ -1,56 +1,168 @@
+import os
+from flask import Flask, render_template, send_file
 import pandas as pd
-import numpy as np
 from datetime import datetime
+import io
 
-# Simulate or load transaction data
-data = {
-    'CustomerID': [1, 1, 2, 2, 2, 3, 4, 4, 5],
-    'InvoiceDate': [
-        '2023-01-01', '2023-02-15', '2023-01-10', '2023-03-20', '2023-04-05',
-        '2023-02-01', '2023-01-15', '2023-03-10', '2023-05-01'
-    ],
-    'Amount': [100, 150, 200, 50, 300, 75, 120, 80, 250]
-}
+# -------------------------------
+# Flask app with templates folder
+# -------------------------------
+app = Flask(__name__, template_folder="templates")
 
-df = pd.DataFrame(data)
-df['InvoiceDate'] = pd.to_datetime(df['InvoiceDate'])
 
-#  Define the reference date (end of analysis period)
-reference_date = datetime(2023, 6, 1)
+@app.route("/")
+def home():
+    return render_template("index.html")
 
-#  Calculate RFM metrics
-rfm = df.groupby('CustomerID').agg(
-    Recency=('InvoiceDate', lambda x: (reference_date - x.max()).days),
-    Frequency=('InvoiceDate', 'count'),
-    Monetary=('Amount', 'sum')
-).reset_index()
+from flask import request, redirect, url_for
 
-#  Assign RFM scores using ranking + qcut (works for small datasets)
-rfm['R_Score'] = pd.qcut(rfm['Recency'].rank(method='first'), 5, labels=[5,4,3,2,1])
-rfm['F_Score'] = pd.qcut(rfm['Frequency'].rank(method='first'), 5, labels=[1,2,3,4,5])
-rfm['M_Score'] = pd.qcut(rfm['Monetary'].rank(method='first'), 5, labels=[1,2,3,4,5])
+# Global variable to store uploaded CSV
+uploaded_df = None
 
-#  Combine RFM score into a single string
-rfm['RFM_Score'] = rfm['R_Score'].astype(str) + rfm['F_Score'].astype(str) + rfm['M_Score'].astype(str)
-
-#  Segment customers based on rules
-def segment_customer(row):
-    r, f, m = int(row['R_Score']), int(row['F_Score']), int(row['M_Score'])
+@app.route("/upload_csv", methods=["POST"])
+def upload_csv():
+    global uploaded_df
+    if 'file' not in request.files:
+        return "No file part"
     
-    if r >= 4 and f >= 4 and m >= 4:
-        return 'Champions'
-    elif r >= 3 and f >= 3 and m >= 3:
-        return 'Loyal Customers'
-    elif r >= 3 and f <= 2 and m <= 2:
-        return 'New Customers'
-    elif r <= 2 and f >= 3 and m >= 3:
-        return 'At-Risk'
-    elif r <= 2 and f <= 2 and m <= 2:
-        return 'Lost'
-    else:
-        return 'Others'
+    file = request.files['file']
+    if file.filename == '':
+        return "No selected file"
+    
+    # Read CSV into DataFrame
+    uploaded_df = pd.read_csv(file)
+    
+    # Redirect to RFM output
+    return redirect(url_for('rfm_output'))
 
-rfm['Segment'] = rfm.apply(segment_customer, axis=1)
 
-#  Display final RFM table
-print(rfm)
+@app.route("/rfm")
+def rfm_output():
+
+    # ---- Sample Data ----
+    data = {
+        'CustomerID': [1, 1, 2, 2, 2, 3, 4, 4, 5],
+        'InvoiceDate': [
+            '2023-01-01', '2023-02-15', '2023-01-10',
+            '2023-03-20', '2023-04-05', '2023-02-01',
+            '2023-01-15', '2023-03-10', '2023-05-01'
+        ],
+        'Amount': [100, 150, 200, 50, 300, 75, 120, 80, 250]
+    }
+
+    df = pd.DataFrame(data)
+    df['InvoiceDate'] = pd.to_datetime(df['InvoiceDate'])
+
+    reference_date = datetime(2023, 6, 1)
+
+    # ---- Calculate RFM ----
+    rfm = df.groupby('CustomerID').agg(
+        Recency=('InvoiceDate', lambda x: (reference_date - x.max()).days),
+        Frequency=('InvoiceDate', 'count'),
+        Monetary=('Amount', 'sum')
+    ).reset_index()
+
+    # ---- RFM Scoring ----
+    def safe_qcut(series, bins, labels):
+        try:
+            return pd.qcut(series.rank(method='first'), bins, labels=labels).astype(int)
+        except:
+            return pd.Series([3] * len(series))  # default fallback
+
+    rfm['R_Score'] = safe_qcut(rfm['Recency'], 5, [5,4,3,2,1])
+    rfm['F_Score'] = safe_qcut(rfm['Frequency'], 5, [1,2,3,4,5])
+    rfm['M_Score'] = safe_qcut(rfm['Monetary'], 5, [1,2,3,4,5])
+
+    rfm['RFM_Score'] = (
+        rfm['R_Score'].astype(str)
+        + rfm['F_Score'].astype(str)
+        + rfm['M_Score'].astype(str)
+    )
+
+    # ---- Segment Customer ----
+    def segment_customer(row):
+        r, f, m = row['R_Score'], row['F_Score'], row['M_Score']
+        if r >= 4 and f >= 4 and m >= 4:
+            return 'Champions'
+        elif r >= 3 and f >= 3 and m >= 3:
+            return 'Loyal Customers'
+        elif r >= 3 and f <= 2:
+            return 'New Customers'
+        elif r <= 2 and f >= 3:
+            return 'At Risk'
+        elif r <= 2 and f <= 2:
+            return 'Lost'
+        else:
+            return 'Others'
+
+    rfm['Segment'] = rfm.apply(segment_customer, axis=1)
+
+    # ---- Convert to HTML Table ----
+    rfm_html = rfm.to_html(classes="table table-bordered", index=False)
+
+    return render_template("rfm.html", table=rfm_html)
+
+
+# ---- Route to download CSV ----
+@app.route("/download_csv")
+def download_csv():
+
+    # Sample Data
+    data = {
+        'CustomerID': [1, 1, 2, 2, 2, 3, 4, 4, 5],
+        'InvoiceDate': [
+            '2023-01-01', '2023-02-15', '2023-01-10',
+            '2023-03-20', '2023-04-05', '2023-02-01',
+            '2023-01-15', '2023-03-10', '2023-05-01'
+        ],
+        'Amount': [100, 150, 200, 50, 300, 75, 120, 80, 250]
+    }
+
+    df = pd.DataFrame(data)
+    df['InvoiceDate'] = pd.to_datetime(df['InvoiceDate'])
+    reference_date = datetime(2023, 6, 1)
+
+    rfm = df.groupby('CustomerID').agg(
+        Recency=('InvoiceDate', lambda x: (reference_date - x.max()).days),
+        Frequency=('InvoiceDate', 'count'),
+        Monetary=('Amount', 'sum')
+    ).reset_index()
+
+    rfm['R_Score'] = pd.qcut(rfm['Recency'].rank(method='first'), 5, labels=[5,4,3,2,1]).astype(int)
+    rfm['F_Score'] = pd.qcut(rfm['Frequency'].rank(method='first'), 5, labels=[1,2,3,4,5]).astype(int)
+    rfm['M_Score'] = pd.qcut(rfm['Monetary'].rank(method='first'), 5, labels=[1,2,3,4,5]).astype(int)
+    rfm['RFM_Score'] = rfm['R_Score'].astype(str) + rfm['F_Score'].astype(str) + rfm['M_Score'].astype(str)
+
+    def segment_customer(row):
+        r, f, m = row['R_Score'], row['F_Score'], row['M_Score']
+        if r >= 4 and f >= 4 and m >= 4:
+            return 'Champions'
+        elif r >= 3 and f >= 3 and m >= 3:
+            return 'Loyal Customers'
+        elif r >= 3 and f <= 2:
+            return 'New Customers'
+        elif r <= 2 and f >= 3:
+            return 'At Risk'
+        elif r <= 2 and f <= 2:
+            return 'Lost'
+        else:
+            return 'Others'
+    rfm['Segment'] = rfm.apply(segment_customer, axis=1)
+
+    # Save to CSV in memory
+    buffer = io.StringIO()
+    rfm.to_csv(buffer, index=False)
+    buffer.seek(0)
+    return send_file(
+        io.BytesIO(buffer.getvalue().encode()),
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name="rfm_output.csv"
+    )
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
+
+    
+       
