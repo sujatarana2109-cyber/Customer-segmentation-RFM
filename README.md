@@ -1,83 +1,77 @@
-# Customer-segmentation-RFM
-RFM-based customer segmentation project using Python and Jupyter Notebook
-This project performs **Customer Segmentation** using the **RFM Model**
-(Recency, Frequency, Monetary) with data stored in a **MySQL database**
-and analyzed in **Python**.
+# Customer Segmentation Using RFM
 
-------------------------------------------------------------------------
+## Overview
+This project performs *customer segmentation* using the *RFM (Recency, Frequency, Monetary) model*. It allows users to upload their own CSV files containing customer purchase data and outputs a table showing customer segments and RFM scores. Users can also download the RFM data as a CSV.
 
-## 📌 Features
+---
 
--   Connects to MySQL database
--   Fetches customer transaction data
--   Calculates RFM scores
--   Assigns RFM segments (Champions, Loyal, At Risk, etc.)
--   Exports results to CSV
--   Includes a ready-to-use Python script
+## Features
+- Upload a CSV file with customer data (CustomerID, InvoiceDate, Amount).
+- Automatic calculation of:
+  - *Recency* – Days since last purchase
+  - *Frequency* – Number of purchases
+  - *Monetary* – Total purchase value
+- *RFM scoring* for each customer.
+- Customer segmentation into categories:
+  - *Champions*
+  - *Loyal Customers*
+  - *New Customers*
+  - *At Risk*
+  - *Lost*
+- Display results in a *styled HTML table*.
+- *Download RFM results as a CSV*.
+- Built using *Python, Flask, Pandas, and Bootstrap*.
 
-------------------------------------------------------------------------
+---
 
-## 📂 Project Structure
+## Usage
 
-    ├── RFM_Segmentation.py
-    ├── rfm_segments.csv
-    ├── requirements.txt
-    └── README.md
+1. *Clone the repository:*
 
-------------------------------------------------------------------------
+```bash
+git clone <your-github-link>
+cd <your-repo-folder>
+Install dependencies:
 
-## 🛠 Requirements
+bash
+Copy code
+pip install flask pandas
+Run the Flask app:
 
-Install required packages:
+bash
+Copy code
+python app.py
+Open the app in your browser:
 
-    pip install -r requirements.txt
+cpp
+Copy code
+http://127.0.0.1:5000/
+Steps inside the app:
 
-------------------------------------------------------------------------
+Upload a CSV file with customer purchase data.
 
-## 🧪 How to Run
+Click View RFM Analysis.
 
-1.  Update your MySQL database details in the Python script:
+Check the table with RFM scores and segments.
 
-```{=html}
-<!-- -->
-```
-    host = "localhost"
-    user = "root"
-    password = "your_password"
-    database = "your_database"
+Optionally, download the CSV using the Download CSV button.
 
-2.  Run the script:
+CSV Format
+Your CSV file should contain the following columns:
 
-```{=html}
-<!-- -->
-```
-    python RFM_Segmentation.py
+Column Name	Description
+CustomerID	Unique identifier for customers
+InvoiceDate	Date of the purchase (YYYY-MM-DD)
+Amount	Purchase amount (numeric)
 
-3.  Output CSV will be generated as:
+Technologies Used
+Python – Backend logic and RFM calculations
 
-```{=html}
-<!-- -->
-```
-    rfm_segments.csv
+Flask – Web framework
 
-------------------------------------------------------------------------
+Pandas – Data manipulation and calculations
 
-## 📊 RFM Segmentation Logic
+Bootstrap – Responsive frontend design
 
--   **Recency** → Days since last purchase\
--   **Frequency** → Total number of purchases\
--   **Monetary** → Total amount spent
-
-Segments include: - Champions\
-- Loyal Customers\
-- Potential Loyalist\
-- At Risk\
-- Hibernating\
-- Lost
-
-------------------------------------------------------------------------
-
-## 👩‍💻 Author
-
-Created for learning **Data Analytics** and **Customer Segmentation**
-using Python + SQL.
+Screenshots
+Add your screenshots or description of outputs here.
